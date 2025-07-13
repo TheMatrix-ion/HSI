@@ -25,13 +25,18 @@ class TransformerEncoderLayer(nn.Module):
         return x
 
 class TransformerClusterNet(nn.Module):
-    def __init__(self, embed_dim=64, output_dim=64, n_layers=2):
+    def __init__(self, embed_dim=64, output_dim=64, n_layers=2, n_clusters=None, max_seq_len=8192):
         super().__init__()
         self.input_proj = nn.Linear(embed_dim, embed_dim)
-        self.encoder = nn.Sequential(*[TransformerEncoderLayer(embed_dim) for _ in range(n_layers)])
+        self.pos_embed = nn.Parameter(torch.randn(1, max_seq_len, embed_dim))
+        self.encoder = nn.Sequential(
+            *[TransformerEncoderLayer(embed_dim) for _ in range(n_layers)]
+        )
         self.output_proj = nn.Linear(embed_dim, output_dim)
+        self.cls_head = nn.Linear(output_dim, n_clusters) if n_clusters is not None else None
+        self.max_seq_len = max_seq_len
 
-    def forward(self, x):
+    def forward(self, x, return_logits=False):
         """Forward pass.
 
         Parameters
@@ -55,9 +60,27 @@ class TransformerClusterNet(nn.Module):
             orig_2d = True
 
         x = self.input_proj(x)
+
+        seq_len = x.size(1)
+        if seq_len > self.max_seq_len:
+            raise ValueError(
+                f"Sequence length {seq_len} exceeds maximum {self.max_seq_len}."
+            )
+        pos_emb = self.pos_embed[:, :seq_len, :]
+        x = x + pos_emb
+
         x = self.encoder(x)
-        x = self.output_proj(x)
+        feat = self.output_proj(x)
+
+        logits = None
+        if return_logits and self.cls_head is not None:
+            logits = self.cls_head(feat)
 
         if orig_2d:
-            return x.squeeze(1)
-        return x
+            feat = feat.squeeze(1)
+            if logits is not None:
+                logits = logits.squeeze(1)
+
+        if return_logits and logits is not None:
+            return feat, logits
+        return feat
