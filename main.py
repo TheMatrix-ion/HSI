@@ -17,6 +17,8 @@ N_CLUSTERS = 16   # Salinas 有 16 类
 EPOCHS = 50
 LATENT_DIM = 64
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+# 根据显存限制决定一次送入 Transformer 的像素数量
+SEQ_BATCH = 4096
 
 def main():
     # 1. 加载并预处理数据
@@ -51,7 +53,19 @@ def main():
     autoencoder.eval()
     with torch.no_grad():
         features, _ = autoencoder(torch.tensor(X, dtype=torch.float32).to(DEVICE))
-        embed = transformer(features).cpu().numpy()
+        features = features.to(DEVICE)
+        if features.size(0) <= SEQ_BATCH:
+            # 所有像素作为一个序列送入 Transformer
+            seq = features.unsqueeze(0)  # (1, N, D)
+            embed = transformer(seq).squeeze(0).cpu().numpy()
+        else:
+            # 分批送入 Transformer，每批作为一个序列
+            outputs = []
+            for i in range(0, features.size(0), SEQ_BATCH):
+                chunk = features[i:i + SEQ_BATCH].unsqueeze(0)
+                out = transformer(chunk).squeeze(0)
+                outputs.append(out.cpu())
+            embed = torch.cat(outputs, dim=0).numpy()
 
     # 5. 聚类（Transformer + KMeans）
     print("Clustering with KMeans...")
