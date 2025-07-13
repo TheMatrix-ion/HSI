@@ -32,9 +32,32 @@ class TransformerClusterNet(nn.Module):
         self.output_proj = nn.Linear(embed_dim, output_dim)
 
     def forward(self, x):
-        # x shape: (N, D) -> (N, 1, D)
-        x = x.unsqueeze(1)
+        """Forward pass.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features. Can be of shape ``(N, D)`` or ``(B, L, D)`` where
+            ``B`` is batch size, ``L`` sequence length and ``D`` embedding
+            dimension.
+
+        Returns
+        -------
+        Tensor
+            Output with the same batch and sequence dimensions as ``x`` and
+            last dimension ``output_dim``.
+        """
+
+        orig_2d = False
+        if x.dim() == 2:
+            # (N, D) -> (N, 1, D) to reuse the same encoder
+            x = x.unsqueeze(1)
+            orig_2d = True
+
         x = self.input_proj(x)
         x = self.encoder(x)
         x = self.output_proj(x)
-        return x.squeeze(1)  # shape: (N, output_dim)
+
+        if orig_2d:
+            return x.squeeze(1)
+        return x
