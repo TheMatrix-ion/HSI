@@ -5,15 +5,36 @@ import matplotlib.pyplot as plt
 import os
 
 def load_hsi_data(mat_file_path, key='salinas_corrected'):
-    """
-    读取 .mat 文件中的 HSI 数据
-    默认 key 为 'salinas_corrected'，其他数据集需根据实际修改
+    """读取 ``mat_file_path`` 中的 HSI 数据
+
+    Parameters
+    ----------
+    mat_file_path : str
+        ``.mat`` 文件路径
+    key : str, optional
+        希望从 ``.mat`` 中加载的键名。当提供的 ``key``
+        在文件中存在时将直接返回对应数据。
+
+    Returns
+    -------
+    numpy.ndarray
+        加载的 HSI 数据，``dtype`` 为 ``float32``，形状为 ``(H, W, C)``
     """
     mat = sio.loadmat(mat_file_path)
-    for k in mat:
-        if not k.startswith('__'):
-            data = mat[k]
-            break
+
+    # 如果指定的 key 存在，优先返回对应的数据
+    if key and key in mat:
+        data = mat[key]
+    else:
+        # 回退: 取第一个非内部字段
+        data = None
+        for k in mat:
+            if not k.startswith("__"):
+                data = mat[k]
+                break
+        if data is None:
+            raise KeyError(f"No valid data key found in {mat_file_path}")
+
     return data.astype(np.float32)  # shape: (H, W, C)
 
 def normalize(X):
