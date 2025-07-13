@@ -16,7 +16,9 @@ def best_map(true_labels, pred_labels):
         cost_matrix[pred_labels[i], true_labels[i]] += 1
     row_ind, col_ind = linear_sum_assignment(-cost_matrix)
     new_pred = np.zeros_like(pred_labels)
-    for i in range(D):
+    # row_ind/col_ind may be shorter than D, so only iterate over the
+    # returned Hungarian assignments to avoid index errors
+    for i in range(len(row_ind)):
         new_pred[pred_labels == row_ind[i]] = col_ind[i]
     return new_pred
 
